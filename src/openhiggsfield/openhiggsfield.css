@@ -3875,8 +3875,22 @@ a.ohf-btn-solid {
   overflow-wrap: anywhere;
 }
 .ohf-cost-adjusted::before {
-  content: "Adjusted: ";
+  content: "Not supported: ";
   color: var(--tx3);
+}
+/* Added before the settings moved out of its reach: kept so it comes back
+   when they move back, but greyed so it does not read as a price. The remove
+   button stays at full strength — it is the one thing to do here. */
+.ohf-cost-row.is-unfit {
+  background: transparent;
+  box-shadow: none;
+}
+.ohf-cost-row.is-unfit .ohf-cost-model,
+.ohf-cost-row.is-unfit .ohf-cost-price {
+  color: var(--tx4);
+}
+.ohf-cost-row.is-unfit .ohf-cost-model > span {
+  opacity: 0.5;
 }
 .ohf-cost-warn,
 .ohf-cost-failure {

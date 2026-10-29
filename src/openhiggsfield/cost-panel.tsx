@@ -78,12 +78,20 @@ export function CostPanel({
     );
     setLoading(true);
 
+    /* A model that cannot take the request as set is shown as N/A, not priced:
+       its price would be for some other request. */
+    const priced = [base, ...compared.filter((entry) => !entry.adjusted.length).map((entry) => entry.plane)];
     const ticket = ++sequence.current;
     const timer = setTimeout(() => {
-      estimateGenerations({ planes: [base, ...compared.map((entry) => entry.plane)] })
+      estimateGenerations({ planes: priced })
         .then((results) => {
           if (ticket !== sequence.current) return;
-          setRows(next.map((row, index) => ({ ...row, result: results[index] })));
+          setRows(
+            next.map((row) => ({
+              ...row,
+              result: results[priced.findIndex((plane) => plane.model === row.modelId)],
+            })),
+          );
           setFailure(null);
         })
         .catch((caught: unknown) => {
@@ -196,11 +204,12 @@ function CostRow({
   onRemove?: () => void;
 }) {
   const model = getModel(row.modelId);
-  const estimate = row.result?.estimate;
-  const total = totalOf(row);
+  const unfit = row.adjusted.length > 0;
+  const estimate = unfit ? undefined : row.result?.estimate;
+  const total = unfit ? null : totalOf(row);
 
   return (
-    <div className="ohf-cost-row">
+    <div className={`ohf-cost-row${unfit ? " is-unfit" : ""}`}>
       <div className="ohf-cost-row-top">
         <span className="ohf-cost-model">
           <ModelIcon modelId={model.id} size={14} />
@@ -221,16 +230,16 @@ function CostRow({
 
       <div className="ohf-cost-price-line">
         <span className="ohf-cost-price">
-          {total === null ? (estimate ? "—" : "…") : `${estimate?.kind === "computed" ? "≈ " : ""}${usd(total)}`}
+          {unfit ? "N/A" : total === null ? (estimate ? "—" : "…") : `${estimate?.kind === "computed" ? "≈ " : ""}${usd(total)}`}
         </span>
         {total !== null && baseUsd !== null && baseUsd > 0 && <Delta total={total} base={baseUsd} />}
       </div>
 
       {estimate && <EstimateDetail estimate={estimate} presses={row.presses} />}
-      {row.result && <p className="ohf-cost-meta">{summary(row.result.settings)}</p>}
+      {!unfit && row.result && <p className="ohf-cost-meta">{summary(row.result.settings)}</p>}
       {row.adjusted.map(({ key, from, to }) => (
         <p key={key} className="ohf-cost-adjusted">
-          {settingLabel(key)} {String(from)} → {String(to)}
+          {settingLabel(key)} {String(from)} (closest {String(to)})
         </p>
       ))}
     </div>

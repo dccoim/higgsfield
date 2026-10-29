@@ -73,7 +73,13 @@ export async function estimateGenerations(data: unknown): Promise<EstimateResult
 
 function reasonOf(caught: unknown): string {
   if (caught instanceof PlatformError) {
-    if (caught.status === 423) return "Not available on this account";
+    if (caught.status === 423) {
+      // The platform's own code ("model_blocked") says which lock it is.
+      const detail = (caught.body as { detail?: unknown } | null)?.detail;
+      return typeof detail === "string" && detail
+        ? `Not available on this account (${detail})`
+        : "Not available on this account";
+    }
     if (caught.status === 422 || caught.status === 400) return `Needs different input: ${caught.message}`;
     return caught.message;
   }
