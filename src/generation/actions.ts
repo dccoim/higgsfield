@@ -12,7 +12,9 @@ import {
   encodeCredentials,
   parseCredentialInput,
 } from "./credentials";
-import { createPlatformClient } from "./platform";
+import { applyBatchDiscount, readEstimate } from "./estimate";
+import type { EstimateResult } from "./estimate";
+import { PlatformError, createPlatformClient } from "./platform";
 import type { StatusResult } from "./platform";
 import { toPlatform } from "./to-platform";
 
@@ -39,6 +41,61 @@ export async function submitGeneration(plane: GenerationPlane) {
   };
   const { path, body } = toPlatform(parsed);
   return createPlatformClient(await readCredentials()).submit(path, body);
+}
+
+/** Prices for the selected model and every model it is compared with, in one
+    round trip for the same reason statuses are batched. Each plane goes through
+    the submit mapper, so the estimate is for the path and body a press of
+    Generate would send. A plane that cannot be priced carries its reason alone. */
+export async function estimateGenerations(data: unknown): Promise<EstimateResult[]> {
+  const planes = parsePlanes(data);
+  const client = createPlatformClient(await readCredentials());
+  const results = await Promise.all(
+    planes.map(async (plane): Promise<EstimateResult> => {
+      let path = "";
+      let settings: Record<string, unknown> = {};
+      try {
+        const model = getModel(plane.model);
+        settings = parseSettings(model, plane.settings);
+        // The price does not depend on the words; the endpoint still wants some.
+        const text = plane.prompt.text.trim() || "Price estimate";
+        const mapped = toPlatform({ ...plane, prompt: { text }, settings });
+        path = mapped.path;
+        const payload = await client.estimate(mapped.path, mapped.body);
+        return { modelId: plane.model, path, settings, estimate: readEstimate(payload, mapped.body) };
+      } catch (caught) {
+        return { modelId: plane.model, path, settings, estimate: { kind: "unavailable", reason: reasonOf(caught) } };
+      }
+    }),
+  );
+  return applyBatchDiscount(results);
+}
+
+function reasonOf(caught: unknown): string {
+  if (caught instanceof PlatformError) {
+    if (caught.status === 423) return "Not available on this account";
+    if (caught.status === 422 || caught.status === 400) return `Needs different input: ${caught.message}`;
+    return caught.message;
+  }
+  return caught instanceof Error ? caught.message : String(caught);
+}
+
+function parsePlanes(data: unknown): GenerationPlane[] {
+  const payload = asObject(data, "Invalid estimate payload");
+  if (!Array.isArray(payload.planes) || payload.planes.length === 0 || payload.planes.length > 12) {
+    throw new Error("Invalid estimate planes");
+  }
+  return payload.planes.map((raw) => {
+    const plane = asObject(raw, "Invalid estimate plane");
+    if (typeof plane.model !== "string") throw new Error("Invalid estimate model");
+    const text = asObject(plane.prompt, "Invalid prompt").text;
+    return {
+      model: plane.model,
+      prompt: { text: typeof text === "string" ? text : "" },
+      media: asObject(plane.media, "Invalid media") as GenerationPlane["media"],
+      settings: asObject(plane.settings, "Invalid settings"),
+    };
+  });
 }
 
 /** Every request in flight, answered in one round trip. Next dispatches server

@@ -16,11 +16,14 @@ export function ModelPicker({
   surface,
   onPick,
   onClose,
+  accepts,
 }: {
   selectedId: string;
   surface: Surface;
   onPick: (model: ModelEntry) => void;
   onClose: () => void;
+  /** Leaves out models that fail it, and says how many were left out. */
+  accepts?: (model: ModelEntry) => boolean;
 }) {
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,7 +34,9 @@ export function ModelPicker({
   }, []);
 
   const query = search.trim().toLowerCase();
-  const catalog = MODELS.filter((model) => model.surface === surface);
+  const surfaceModels = MODELS.filter((model) => model.surface === surface);
+  const catalog = accepts ? surfaceModels.filter(accepts) : surfaceModels;
+  const hidden = surfaceModels.length - catalog.length;
   /* The description is searchable too: "references", "4K" and "audio" are how
      a visitor asks for a model whose name they do not remember. */
   const models = catalog.filter(
@@ -84,6 +89,7 @@ export function ModelPicker({
           {query
             ? `${models.length} of ${catalog.length} ${SURFACE_LABELS[surface].toLowerCase()} models`
             : `${SURFACE_LABELS[surface]} models`}
+          {hidden > 0 && ` · ${hidden} hidden, can't take these settings`}
         </div>
 
         {models.length === 0 && (
@@ -91,20 +97,30 @@ export function ModelPicker({
             <span className="ohf-picker-empty-ic">
               <SearchIcon size={15} />
             </span>
-            <span className="ohf-picker-empty-title">No model matches “{search.trim()}”</span>
-            <span className="ohf-picker-empty-hint">
-              The {SURFACE_LABELS[surface].toLowerCase()} catalog holds {catalog.length} models.
+            <span className="ohf-picker-empty-title">
+              {query ? (
+                <>No model matches “{search.trim()}”</>
+              ) : (
+                "No other model takes these settings"
+              )}
             </span>
-            <button
-              type="button"
-              className="ohf-btn-solid"
-              onClick={() => {
-                setSearch("");
-                inputRef.current?.focus();
-              }}
-            >
-              Clear search
-            </button>
+            <span className="ohf-picker-empty-hint">
+              {query
+                ? `The ${SURFACE_LABELS[surface].toLowerCase()} catalog holds ${catalog.length} models.`
+                : "Change the duration, resolution or ratio to compare against more models."}
+            </span>
+            {query && (
+              <button
+                type="button"
+                className="ohf-btn-solid"
+                onClick={() => {
+                  setSearch("");
+                  inputRef.current?.focus();
+                }}
+              >
+                Clear search
+              </button>
+            )}
           </div>
         )}
 

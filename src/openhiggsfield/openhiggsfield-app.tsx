@@ -10,11 +10,13 @@ import { assemblePlane } from "@/generation/plane";
 import type { GenerationStatus } from "@/generation/platform";
 import { POLL_DEADLINE_MS, stopWatching, watchRequest } from "@/generation/poll";
 import { useActive } from "@/generation/stores/active";
+import { useCompare } from "@/generation/stores/compare";
 import { useImagePrompt, useVideoPrompt } from "@/generation/stores/prompt";
 import { useSettings } from "@/generation/stores/settings";
 
 import { GRAIN_URI, artFor } from "./artwork";
 import { Composer } from "./composer";
+import { CostPanel } from "./cost-panel";
 import { fileNameFor, saveFile } from "./download";
 import { KeyModal } from "./key-modal";
 import {
@@ -163,6 +165,8 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const setModel = useActive((state) => state.setModel);
   const model = getModel(modelId);
   const setSettings = useSettings((state) => state.set);
+  const costOpen = useCompare((state) => state.open);
+  const setCostOpen = useCompare((state) => state.setOpen);
 
   const [history, setHistory] = useState<RunRecord[]>([]);
   const [runs, setRuns] = useState<ActiveRun[]>([]);
@@ -679,7 +683,23 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
               )
             }
           />
+
+          {!costOpen && (
+            <button
+              type="button"
+              className="ohf-cost-toggle"
+              aria-label="Show cost estimate"
+              title="Show cost estimate"
+              onClick={() => setCostOpen(true)}
+            >
+              $
+            </button>
+          )}
         </main>
+
+        {costOpen && (
+          <CostPanel keyConfigured={keyConfigured} onKeys={openKeys} onClose={() => setCostOpen(false)} />
+        )}
 
         {viewerItem && (
           <Viewer

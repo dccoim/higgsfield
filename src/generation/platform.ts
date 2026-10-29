@@ -73,6 +73,12 @@ export function createPlatformClient(options: PlatformClientOptions) {
       if (!isModelId(model)) throw new PlatformError(400, { detail: "Invalid model" });
       return mapQueued(await send("POST", `/${model}`, input));
     },
+    /** The platform's price for this exact path and body. Raw payload: its
+        shape varies by model, and estimate.ts owns reading it. */
+    async estimate(model: string, input: Record<string, unknown>): Promise<unknown> {
+      if (!isModelId(model)) throw new PlatformError(400, { detail: "Invalid model" });
+      return send("POST", `/estimate/${model}`, input);
+    },
     async status(requestId: string): Promise<GenerationStatus> {
       if (!requestId) throw new PlatformError(400, { detail: "Missing request id" });
       return mapStatus(await send("GET", `/requests/${encodeURIComponent(requestId)}/status`));
